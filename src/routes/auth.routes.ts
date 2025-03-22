@@ -20,7 +20,7 @@ router.route("/login").post(login);
 router.route("/forgot-password").post(forgotPassword);
 router.route("/reset-password").post(resetPassword);
 router.route("/verify-social-token").post(verifySocialToken as any);
-router.route('/update/:id').patch(upload.single("avatar"), updateUser);
+router.route("/update/:id").patch(upload.single("avatar"), updateUser);
 router.route('/delete/:id').delete(deleteUser);
 
 // Google OAuth routes

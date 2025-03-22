@@ -1,21 +1,29 @@
-import { Schema, model, Document } from 'mongoose';
+import mongoose from "mongoose";
 
-interface IBooking extends Document {
-    userId: Schema.Types.ObjectId;
-    theaterId: Schema.Types.ObjectId;
-    showtimeId: Schema.Types.ObjectId;
-    seats: string[];
-    bookedAt: Date;
-    status: 'Booked' | 'Cancelled' | 'Refunded';
-}
-
-const bookingSchema = new Schema<IBooking>({
-    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    theaterId: { type: Schema.Types.ObjectId, ref: 'Theater', required: true },
-    showtimeId: { type: Schema.Types.ObjectId, ref: 'Showtime', required: true },
-    seats: [{ type: String, required: true }],
-    bookedAt: { type: Date, default: Date.now },
-    status: { type: String, enum: ['Booked', 'Cancelled', 'Refunded'], default: 'Booked' },
+const bookingSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  theaterId: { type: mongoose.Schema.Types.ObjectId, ref: "Theater", required: true },
+  showtimeId: { type: mongoose.Schema.Types.ObjectId, ref: "Showtime", required: true },
+  seats: [
+    {
+      seatNumber: { type: String, required: true },
+      price: { type: Number, required: true },
+      totalSeats: { type: Number, required: true },
+      seatType: { type: String, required: true },
+    },
+  ],
+  totalAmount: { type: Number, required: true },
+  paymentMethod: { type: String, default: "razorpay" },
+  paymentIntentId: { type: String },
+  paymentId: { type: String },
+  razorpaySignature: { type: String },
+  transactionStatus: {
+    type: String,
+    enum: ["Pending", "Paid", "Failed", "Refunded"],
+    default: "Pending",
+  },
+  bookingDate: { type: Date }, // New field
+  createdAt: { type: Date, default: Date.now }, // Optional: MongoDB timestamp
 });
 
-export default model<IBooking>('Booking', bookingSchema);
+export default mongoose.model("Booking", bookingSchema);

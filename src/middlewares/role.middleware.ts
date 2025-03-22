@@ -11,6 +11,7 @@ interface AuthRequest extends Request {
 
 export const roleMiddleware = (allowedRoles: string[]) => {
     return (req: any, res: any, next: NextFunction): any => {
+        console.log(req.user)
         if (!req.user || !allowedRoles.includes(req.user.role)) {
             return res.status(403).json({ message: 'Access denied: insufficient permissions' });
         }

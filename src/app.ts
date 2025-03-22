@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import authRoutes from "./routes/auth.routes";
 import userRoutes from "./routes/user.routes";
 import adminRoutes from "./routes/admin.routes";
+import theaterRoutes from "./routes/theaterAdmin.routes";
 import passport from "passport";
 import session from "express-session";
 import { configurePassport } from "./utils/passportUtils";
@@ -37,5 +38,6 @@ configurePassport();
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/user", userRoutes);
 app.use("/api/v1/admin", adminRoutes);
+app.use("/api/v1/theater", theaterRoutes);
 
 export default app;

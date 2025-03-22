@@ -11,7 +11,7 @@ interface IReview extends Document {
 
 const reviewSchema = new Schema<IReview>({
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    movieId: { type: Schema.Types.ObjectId, ref: 'Movie', required: true },
+    movieId: { type: Schema.Types.ObjectId, ref: 'Showtime', required: true },
     rating: { type: Number, required: true, min: 1, max: 5 },
     content: { type: String, required: true },
     createdAt: { type: Date, default: Date.now },

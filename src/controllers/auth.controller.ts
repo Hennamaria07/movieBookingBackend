@@ -137,8 +137,8 @@ export const signup = async (req: any, res: Response): Promise<any> => {
 // **Login Controller**
 export const login = async (req: any, res: Response): Promise<void> => {
   try {
-    const { identifier, password } = req.body;
-
+    const { password } = req.body;
+const identifier = req.body.email
     // Input validation
     if (!identifier || !password) {
       res.status(400).json({
@@ -203,10 +203,10 @@ export const login = async (req: any, res: Response): Promise<void> => {
       userId: user.userId,
       role: user.role,
       status: user.status,
-      avatar: user.avatar
+      avatar: user.avatar.url
     };
 
-    res.status(200).json({
+    res.status(200).cookie("token", token, { httpOnly: true, secure: true }).json({
       message: "Login successful",
       token,
       user: userResponse
@@ -367,6 +367,7 @@ export const updateUser = async (req: any, res: Response): Promise<any> => {
       user.password = newPassword; // Assuming password hashing middleware is set up on the model
     }
 
+    console.log('avtar filr', avatarFile)
     // Only update avatar if avatarFile is provided
     if (avatarFile) {
       try {
@@ -385,6 +386,7 @@ export const updateUser = async (req: any, res: Response): Promise<any> => {
           publicId: uploadResult.public_id,
           url: uploadResult.url
         };
+        console.log(user.avatar )
       } catch (uploadError) {
         console.error("Avatar update failed:", uploadError);
         return res.status(400).json({ message: "Failed to update avatar" });

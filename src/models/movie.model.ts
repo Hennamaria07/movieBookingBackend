@@ -6,8 +6,10 @@ interface IMovie extends Document {
     duration: number;
     language: string;
     releaseDate: Date;
-    backdropPath?: string;
-    posterPath?: string;
+    posterPath?: {
+        publicId: string;
+        url: string;
+    };
     status: 'Now Showing' | 'Coming Soon' | 'Trending';
 }
 
@@ -17,8 +19,10 @@ const movieSchema = new Schema<IMovie>({
     duration: { type: Number, required: true }, // in minutes
     language: { type: String, required: true },
     releaseDate: { type: Date, required: true },
-    backdropPath: String,
-    posterPath: String,
+    posterPath: {
+        publicId: { type: String },
+        url: { type: String },
+    },
     status: { type: String, enum: ['Now Showing', 'Coming Soon', 'Trending'], default: 'Coming Soon' },
 });
 

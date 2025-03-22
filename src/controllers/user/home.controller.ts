@@ -71,3 +71,15 @@ export const getAllCustomers = async (req: Request, res: any) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+export const getUserById = async (req: Request, res: any) => {
+    try {
+        const user = await User.findById(req.params.id);
+        res.json({
+            success: true,
+            data: user
+        });
+    } catch (error: any) {
+        res.status(500).json({ message: error.message });
+    }
+}
