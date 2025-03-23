@@ -2,6 +2,7 @@ import Razorpay from "razorpay";
 import Booking from "../../models/booking.model";
 import Showtime from "../../models/showtime.model";
 import mongoose from "mongoose";
+import User from "../../models/user.model";
 
 // Initialize Razorpay
 const razorpay = new Razorpay({
@@ -325,6 +326,83 @@ export const getAllBookings = async (req: any, res: any) => {
     res.status(500).json({
       success: false,
       message: "Error fetching bookings",
+      error: error instanceof Error ? error.message : error,
+    });
+  }
+};
+
+// Fetch all bookings for a specific theater
+export const getTheaterBookings = async (req: any, res: any) => {
+  try {
+    const { theaterId } = req.params; // Use req.params instead of req.user.id
+
+    // Validate theaterId
+    if (!mongoose.Types.ObjectId.isValid(theaterId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid theater ID',
+      });
+    }
+
+    // Fetch bookings for the theater
+    const bookings = await Booking.find({ theaterId })
+      .populate('userId', 'firstName lastName email') // Populate user details
+      .populate('theaterId', 'name location') // Populate theater details
+      .populate({
+        path: 'showtimeId',
+        select: 'showName startTime Date duration', // Populate specific showtime fields
+      })
+      .lean(); // Use lean() for better performance
+
+    if (!bookings || bookings.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No bookings found for this theater',
+      });
+    }
+
+    // Format the response to match frontend expectations
+    const formattedBookings = bookings.map((booking: any) => ({
+      id: booking._id.toString(),
+      user: {
+        id: booking.userId._id.toString(),
+        firstName: booking.userId.firstName,
+        lastName: booking.userId.lastName,
+        email: booking.userId.email,
+      },
+      theater: {
+        id: booking.theaterId._id.toString(),
+        name: booking.theaterId.name,
+        location: booking.theaterId.location,
+      },
+      showtime: {
+        id: booking.showtimeId._id.toString(),
+        showName: booking.showtimeId.showName,
+        startTime: booking.showtimeId.startTime, // Assuming startTime is an array or string
+        date: booking.showtimeId.Date, // Adjust field name if it's different
+        duration: booking.showtimeId.duration,
+      },
+      seats: booking.seats,
+      totalAmount: booking.totalAmount,
+      paymentMethod: booking.paymentMethod,
+      paymentIntentId: booking.paymentIntentId,
+      paymentId: booking.paymentId,
+      razorpaySignature: booking.razorpaySignature,
+      transactionStatus: booking.transactionStatus,
+      bookingDate: booking.bookingDate,
+      createdAt: booking.createdAt,
+    }));
+
+    res.status(200).json({
+      success: true,
+      message: 'Bookings retrieved successfully',
+      data: formattedBookings,
+    });
+  } catch (error) {
+    console.error('Error fetching theater bookings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching theater bookings',
       error: error instanceof Error ? error.message : error,
     });
   }
@@ -811,5 +889,367 @@ export const addReview = async (req: any, res: any) => {
     });
   } finally {
     session.endSession();
+  }
+};
+
+// export const reviewController = async (req:any, res: any) => {
+//   const session = await mongoose.startSession();
+//   session.startTransaction();
+
+//   try {
+//     const { showtimeId } = req.params;
+//     const { action, reviewId, rating, content, voteType } = req.body;
+//     const userId = req.user?.id; // Assuming user ID from auth middleware
+
+//     if (!userId) {
+//       throw new Error('Unauthorized: User not authenticated');
+//     }
+
+//     const showtime = await Showtime.findById(showtimeId)
+//       .populate('review.userId', 'name avatar')
+//       .session(session);
+//     if (!showtime) {
+//       throw new Error('Showtime not found');
+//     }
+
+//     switch (action) {
+//       case 'addReview': {
+//         if (!rating || !content) {
+//           throw new Error('Rating and content are required');
+//         }
+//         if (rating < 1 || rating > 5) {
+//           throw new Error('Rating must be between 1 and 5');
+//         }
+
+//         const existingReview = showtime.review.find(r => r.userId.toString() === userId);
+//         if (existingReview) {
+//           throw new Error('You have already reviewed this showtime');
+//         }
+
+//         const newReview = {
+//           userId,
+//           rating,
+//           content,
+//           createdAt: new Date(),
+//         };
+//         showtime.review.push(newReview);
+//         await showtime.save({ session });
+//         await session.commitTransaction();
+//         return res.status(201).json({
+//           success: true,
+//           message: 'Review added successfully',
+//           data: newReview,
+//         });
+//       }
+
+//       case 'vote': {
+//         if (!reviewId) throw new Error('Review ID is required');
+//         if (!['up', 'down'].includes(voteType)) throw new Error('Invalid vote type');
+
+//         const review: any = showtime.review.id(reviewId);
+//         if (!review) throw new Error('Review not found');
+
+//         const existingVote = review.userVotes.find((v: any) => v.userId.toString() === userId);
+//         if (existingVote) {
+//           if (existingVote.voteType === voteType) {
+//             // Remove vote
+//             review.userVotes = review.userVotes.filter((v: any) => v.userId.toString() !== userId);
+//             if (voteType === 'up') review.upvotes -= 1;
+//             else review.downvotes -= 1;
+//           } else {
+//             // Change vote
+//             existingVote.voteType = voteType;
+//             if (voteType === 'up') {
+//               review.upvotes += 1;
+//               review.downvotes -= 1;
+//             } else {
+//               review.downvotes += 1;
+//               review.upvotes -= 1;
+//             }
+//           }
+//         } else {
+//           // New vote
+//           review.userVotes.push({ userId, voteType });
+//           if (voteType === 'up') review.upvotes += 1;
+//           else review.downvotes += 1;
+//         }
+
+//         await showtime.save({ session });
+//         await session.commitTransaction();
+//         return res.status(200).json({
+//           success: true,
+//           message: 'Vote recorded successfully',
+//           data: { upvotes: review.upvotes, downvotes: review.downvotes },
+//         });
+//       }
+
+//       case 'addReply': {
+//         if (!reviewId) throw new Error('Review ID is required');
+//         if (!content) throw new Error('Content is required');
+
+//         const review = showtime.review.id(reviewId);
+//         if (!review) throw new Error('Review not found');
+
+//         const user: any = await User.findById(userId); // Assuming a User model exists
+//         const newReply = {
+//           userId,
+//           userName: user.name,
+//           userAvatar: user.avatar,
+//           content,
+//           createdAt: new Date(),
+//         };
+
+//         review.replies.push(newReply);
+//         await showtime.save({ session });
+//         await session.commitTransaction();
+//         return res.status(201).json({
+//           success: true,
+//           message: 'Reply added successfully',
+//           data: newReply,
+//         });
+//       }
+
+//       default:
+//         throw new Error('Invalid action specified');
+//     }
+//   } catch (error) {
+//     await session.abortTransaction();
+//     console.error('Error in review controller:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: error instanceof Error ? error.message : error,
+//     });
+//   } finally {
+//     session.endSession();
+//   }
+// };
+
+export const reviewController = async (req: any, res: any) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { showtimeId } = req.params;
+    const { action, reviewId, rating, content, voteType } = req.body;
+    const userId = req.user?.id; // Assuming user ID from auth middleware
+
+    if (!userId) {
+      throw new Error('Unauthorized: User not authenticated');
+    }
+
+    const showtime = await Showtime.findById(showtimeId)
+      .populate('review.userId', 'name avatar')
+      .session(session);
+    if (!showtime) {
+      throw new Error('Showtime not found');
+    }
+
+    switch (action) {
+      case 'addReview': {
+        if (!rating || !content) {
+          throw new Error('Rating and content are required');
+        }
+        if (rating < 1 || rating > 5) {
+          throw new Error('Rating must be between 1 and 5');
+        }
+
+        const existingReview = showtime.review.find(r => r.userId.toString() === userId);
+        if (existingReview) {
+          throw new Error('You have already reviewed this showtime');
+        }
+
+        const newReview = {
+          userId,
+          rating,
+          content,
+          createdAt: new Date(),
+        };
+        showtime.review.push(newReview);
+        await showtime.save({ session });
+        await session.commitTransaction();
+        return res.status(201).json({
+          success: true,
+          message: 'Review added successfully',
+          data: newReview,
+        });
+      }
+
+      case 'editReview': {
+        if (!rating || !content) {
+          throw new Error('Rating and content are required');
+        }
+        if (rating < 1 || rating > 5) {
+          throw new Error('Rating must be between 1 and 5');
+        }
+
+        const review = showtime.review.find(r => r.userId.toString() === userId);
+        if (!review) {
+          throw new Error('Review not found for this user');
+        }
+
+        review.rating = rating;
+        review.content = content;
+        // Optionally update createdAt to reflect the edit time
+        // review.createdAt = new Date();
+
+        await showtime.save({ session });
+        await session.commitTransaction();
+        return res.status(200).json({
+          success: true,
+          message: 'Review updated successfully',
+          data: review,
+        });
+      }
+
+      case 'vote': {
+        if (!reviewId) throw new Error('Review ID is required');
+        if (!['up', 'down'].includes(voteType)) throw new Error('Invalid vote type');
+
+        const review: any = showtime.review.id(reviewId);
+        if (!review) throw new Error('Review not found');
+
+        const existingVote = review.userVotes.find((v: any) => v.userId.toString() === userId);
+        if (existingVote) {
+          if (existingVote.voteType === voteType) {
+            // Remove vote
+            review.userVotes = review.userVotes.filter((v: any) => v.userId.toString() !== userId);
+            if (voteType === 'up') review.upvotes -= 1;
+            else review.downvotes -= 1;
+          } else {
+            // Change vote
+            existingVote.voteType = voteType;
+            if (voteType === 'up') {
+              review.upvotes += 1;
+              review.downvotes -= 1;
+            } else {
+              review.downvotes += 1;
+              review.upvotes -= 1;
+            }
+          }
+        } else {
+          // New vote
+          review.userVotes.push({ userId, voteType });
+          if (voteType === 'up') review.upvotes += 1;
+          else review.downvotes += 1;
+        }
+
+        await showtime.save({ session });
+        await session.commitTransaction();
+        return res.status(200).json({
+          success: true,
+          message: 'Vote recorded successfully',
+          data: { upvotes: review.upvotes, downvotes: review.downvotes },
+        });
+      }
+
+      case 'addReply': {
+        if (!reviewId) throw new Error('Review ID is required');
+        if (!content) throw new Error('Content is required');
+
+        const review = showtime.review.id(reviewId);
+        if (!review) throw new Error('Review not found');
+
+        const user: any = await User.findById(userId); // Assuming a User model exists
+        const newReply = {
+          userId,
+          userName: user.name,
+          userAvatar: user.avatar,
+          content,
+          createdAt: new Date(),
+        };
+
+        review.replies.push(newReply);
+        await showtime.save({ session });
+        await session.commitTransaction();
+        return res.status(201).json({
+          success: true,
+          message: 'Reply added successfully',
+          data: newReply,
+        });
+      }
+
+      default:
+        throw new Error('Invalid action specified');
+    }
+  } catch (error) {
+    await session.abortTransaction();
+    console.error('Error in review controller:', error);
+    res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : error,
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+// Add a new endpoint to fetch a user's review for a specific showtime
+export const getUserReview = async (req: any, res: any) => {
+  try {
+    const { showtimeId } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    const showtime = await Showtime.findById(showtimeId).populate('review.userId', 'name avatar');
+    if (!showtime) {
+      return res.status(404).json({ success: false, message: 'Showtime not found' });
+    }
+
+    const userReview = showtime.review.find(r => r.userId.toString() === userId);
+    if (!userReview) {
+      return res.status(200).json({ success: true, data: null }); // No review yet
+    }
+
+    res.status(200).json({ success: true, data: userReview });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error fetching user review', error });
+  }
+};
+
+// Separate endpoint for getting reviews
+export const getReviews = async (req: any, res: any) => {
+  try {
+    const { showtimeId } = req.params;
+    const { searchQuery = '', sortBy = 'helpful', ratingFilter = 'all' } = req.query;
+
+    const showtime = await Showtime.findById(showtimeId).populate('review.userId', 'name avatar');
+    if (!showtime) {
+      return res.status(404).json({ success: false, message: 'Showtime not found' });
+    }
+
+    let reviews: any = showtime.review;
+
+    // Filtering
+    if (searchQuery) {
+      reviews = reviews.filter((r: any) => 
+        showtime.showName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.content.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    if (ratingFilter !== 'all') {
+      reviews = reviews.filter((r: any) => Math.floor(r.rating) === parseInt(ratingFilter));
+    }
+
+    // Sorting
+    reviews.sort((a: any, b: any) => {
+      switch (sortBy) {
+        case 'recent':
+          return b.createdAt - a.createdAt;
+        case 'rating':
+          return b.rating - a.rating;
+        case 'ai':
+          // Implement AI-based sorting logic here
+          return 0;
+        default: // helpful
+          return (b.upvotes - b.downvotes) - (a.upvotes - a.downvotes);
+      }
+    });
+
+    res.status(200).json({ success: true, data: reviews });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error fetching reviews', error });
   }
 };

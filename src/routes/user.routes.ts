@@ -21,13 +21,16 @@ router.get('/:id', authMiddleware, homeController.getUserById);
 // booking
 router.post('/book/show', authMiddleware, BookingController.createBooking);
 router.get('/bookings', authMiddleware, BookingController.getAllBookings);
+router.get('/bookings/theater/:theaterId', authMiddleware, BookingController.getTheaterBookings);
 router.get('/bookings', authMiddleware, BookingController.getAllBookings);
 router.get('/bookings-by-user/:id', authMiddleware, BookingController.getAllBookedShowsByUser);
 router.post('/bookings/refund/:bookingId', authMiddleware, BookingController.cancelBooking);
 router.patch('/bookings/confirm/payment', authMiddleware, BookingController.confirmPayment);
 router.put('/booking/:bookingId/modify', authMiddleware, BookingController.modifyBooking);
 router.post('/booking/confirm/modified/payment/:bookingId', authMiddleware, BookingController.confirmModifyPayment);
-router.post('/show/review', authMiddleware, BookingController.addReview);
+router.post('/showtimes/:showtimeId/reviews', authMiddleware, BookingController.reviewController);
+router.get('/showtimes/:showtimeId/reviews/user', authMiddleware, BookingController.getUserReview);
+
 
 
 // Protected route (requires User role)
