@@ -1209,6 +1209,84 @@ export const getUserReview = async (req: any, res: any) => {
   }
 };
 
+export const getUserReviews = async (req: any, res: any) => {
+  console.log('working...')
+  try {
+    const userId = req.params.userId;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    // Validate that userId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Invalid user ID format' 
+      });
+    }
+
+    // Use aggregation for efficient pagination
+    const reviewsAggregate = await Showtime.aggregate([
+      { $match: { 'review.userId': new mongoose.Types.ObjectId(userId) } },
+      { $unwind: '$review' },
+      { $match: { 'review.userId': new mongoose.Types.ObjectId(userId) } },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'review.userId',
+          foreignField: '_id',
+          as: 'userData'
+        }
+      },
+      { $unwind: '$userData' },
+      {
+        $project: {
+          _id: '$review._id',
+          rating: '$review.rating',
+          content: '$review.content', // Changed from 'comment' to match schema
+          createdAt: '$review.createdAt',
+          showtimeId: '$_id',
+          showName: 1,
+          userName: '$userData.name',
+          userAvatar: '$userData.avatar'
+        }
+      },
+      { $sort: { createdAt: -1 } },
+      { $skip: (page - 1) * limit },
+      { $limit: limit }
+    ]);
+
+    // Get total count for pagination
+    const totalReviews = await Showtime.aggregate([
+      { $match: { 'review.userId': new mongoose.Types.ObjectId(userId) } },
+      { $unwind: '$review' },
+      { $match: { 'review.userId': new mongoose.Types.ObjectId(userId) } },
+      { $count: 'total' }
+    ]);
+
+    const total = totalReviews.length > 0 ? totalReviews[0].total : 0;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        reviews: reviewsAggregate,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching user reviews:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error instanceof Error ? error.message : error,
+    });
+  }
+};
+
 // Separate endpoint for getting reviews
 export const getReviews = async (req: any, res: any) => {
   try {
@@ -1251,5 +1329,108 @@ export const getReviews = async (req: any, res: any) => {
     res.status(200).json({ success: true, data: reviews });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Error fetching reviews', error });
+  }
+};
+
+// New Delete Review Controller
+export const deleteReviewController = async (req: any, res: any) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { showtimeId, reviewId } = req.params; // Assuming reviewId is passed as a param
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const showtime = await Showtime.findById(showtimeId).session(session);
+    if (!showtime) {
+      throw new Error("Showtime not found");
+    }
+
+    const reviewIndex = showtime.review.findIndex(
+      (r) => r._id.toString() === reviewId && r.userId.toString() === userId
+    );
+    if (reviewIndex === -1) {
+      throw new Error("Review not found or you don't have permission to delete it");
+    }
+
+    showtime.review.splice(reviewIndex, 1); // Remove the review
+    await showtime.save({ session });
+
+    await session.commitTransaction();
+    return res.status(200).json({
+      success: true,
+      message: "Review deleted successfully",
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    console.error("Error deleting review:", error);
+    return res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : error,
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+// New Edit Review Controller
+export const editReviewController = async (req: any, res: any) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { showtimeId, reviewId } = req.params;
+    const { rating, content } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    if (!rating || !content) {
+      throw new Error("Rating and content are required");
+    }
+    if (rating < 1 || rating > 5) {
+      throw new Error("Rating must be between 1 and 5");
+    }
+
+    const showtime = await Showtime.findById(showtimeId).session(session);
+    if (!showtime) {
+      throw new Error("Showtime not found");
+    }
+
+    const review = showtime.review.find(
+      (r) => r._id.toString() === reviewId && r.userId.toString() === userId
+    );
+    if (!review) {
+      throw new Error("Review not found or you don't have permission to edit it");
+    }
+
+    review.rating = rating;
+    review.content = content;
+    // Optionally update createdAt to reflect the edit time
+    // review.createdAt = new Date();
+
+    await showtime.save({ session });
+    await session.commitTransaction();
+
+    return res.status(200).json({
+      success: true,
+      message: "Review updated successfully",
+      data: review,
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    console.error("Error editing review:", error);
+    return res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : error,
+    });
+  } finally {
+    session.endSession();
   }
 };

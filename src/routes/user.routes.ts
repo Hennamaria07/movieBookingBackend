@@ -30,8 +30,17 @@ router.put('/booking/:bookingId/modify', authMiddleware, BookingController.modif
 router.post('/booking/confirm/modified/payment/:bookingId', authMiddleware, BookingController.confirmModifyPayment);
 router.post('/showtimes/:showtimeId/reviews', authMiddleware, BookingController.reviewController);
 router.get('/showtimes/:showtimeId/reviews/user', authMiddleware, BookingController.getUserReview);
-
-
+router.get('/user-reviews/:userId', authMiddleware, BookingController.getUserReviews);
+router.delete(
+    "/showtimes/:showtimeId/reviews/:reviewId",
+    authMiddleware,
+    BookingController.deleteReviewController
+  );
+  router.put(
+    "/showtimes/:showtimeId/reviews/:reviewId",
+    authMiddleware,
+    BookingController.editReviewController
+  );
 
 // Protected route (requires User role)
 router.get('/featured', authMiddleware, roleMiddleware(['User']), homeController.getFeaturedContent);
